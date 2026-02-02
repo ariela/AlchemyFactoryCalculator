@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alchemy Factory Planner</title>
+
+    <!-- Core Styling -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Database and Constants -->
+    <script src="alchemy_db.js"></script>
+    <script src="alchemy_constants.js"></script>
+</head>
+
+<body>
+
+    <!-- Notification Banner (Hidden by Default) -->
+    <div id="update-banner"
+        style="display:none; background:#2e7d32; color:white; padding:10px; text-align:center; justify-content:center; align-items:center; gap:15px; font-weight:bold;">
+        <span>New official recipe update available! Your custom database is outdated.</span>
+        <button onclick="resetRecipes()"
+            style="background:white; color:#2e7d32; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-weight:bold;">Update
+            & Overwrite</button>
+        <button onclick="hideUpdateNotification()"
+            style="background:transparent; color:white; border:1px solid white; padding:5px 10px; border-radius:4px; cursor:pointer;">Ignore</button>
+    </div>
+
+    <header>
+        <div style="display:flex; align-items:baseline;">
+            <h1>Alchemy Factory Planner</h1>
+            <span style="margin-left: 20px;">
+                <!-- Updated: Version/Changelog first, then GitHub Repo -->
+                <span class="subtitle changelog-link" style="cursor: pointer; margin-right: 15px;">
+                    <span class="app-version">Loading...</span> | View Changelog
+                </span>
+                <a href="https://github.com/JoeJoesGit/AlchemyFactoryCalculator" target="_blank"
+                    class="repo-link">GitHub Repo</a>
+            </span>
+        </div>
+        <div class="tabs">
+            <div class="tab-btn active" onclick="switchTab('calc')">Calculator</div>
+            <div class="tab-btn" onclick="switchTab('db')">Recipe Database</div>
+            <div class="tab-btn" onclick="switchTab('code')">Chain Code</div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Recipe Selection Modal -->
+        <div id="recipe-modal" class="modal-overlay" onclick="if(event.target===this) closeModal('recipe-modal')">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="recipe-modal-title">Select Recipe</h2>
+                    <button class="close-modal" onclick="closeModal('recipe-modal')">&times;</button>
+                </div>
+                <div id="recipe-list"></div>
+            </div>
+        </div>
+
+        <!-- Import Code Modal -->
+        <div id="import-modal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h2>Import Production Chain</h2>
+                    <button class="close-modal" onclick="closeModal('import-modal')">&times;</button>
+                </div>
+                <div style="padding: 15px;">
+                    <p style="margin-bottom: 10px; color: #ccc;">Paste your code or URL below:</p>
+                    <textarea id="import-code-input" rows="5"
+                        style="width: 100%; background: #222; color: #fff; border: 1px solid #444; padding: 10px; border-radius: 4px; resize: vertical; margin-bottom: 15px; font-family: monospace;"></textarea>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                        <button onclick="closeModal('import-modal')"
+                            style="padding: 8px 16px; background: transparent; border: 1px solid #666; color: #ccc; border-radius: 4px; cursor: pointer;">Cancel</button>
+                        <button onclick="handleImportSubmit()"
+                            style="padding: 8px 16px; background: #2e7d32; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">Load
+                            Code</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Target Item Selector Modal (New v103) -->
+        <div id="target-modal" class="modal-overlay" onclick="if(event.target===this) closeModal('target-modal')">
+            <div class="modal-content" style="max-width: 800px; height: 80vh; display:flex; flex-direction:column;">
+                <div class="modal-header">
+                    <h2>Select Target Item</h2>
+                    <button class="close-modal" onclick="closeModal('target-modal')">&times;</button>
+                </div>
+                <!-- Layout Container -->
+                <div class="target-modal-layout" style="padding:15px; flex:1; min-height:0;">
+                    <!-- Filter Bar -->
+                    <div id="target-filter-bar" class="filter-bar">
+                        <!-- Pills injected by JS -->
+                    </div>
+
+                    <!-- Search -->
+                    <input type="text" id="target-search" class="modal-search" placeholder="Search items..."
+                        autocomplete="off" oninput="renderTargetList()">
+
+                    <!-- Grid -->
+                    <div id="target-grid" class="target-grid">
+                        <!-- Cards injected by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Calculator -->
+        <div id="view-calc" class="view active">
+            <div class="app-grid">
+
+                <!-- Column 1: Inputs & Settings -->
+                <div>
+                    <div class="panel section-production">
+                        <div class="panel-header" onclick="toggleSection(this)">
+                            <h3>Production Goal</h3>
+                            <span class="toggle-icon">▼</span>
+                        </div>
+                        <div class="panel-content">
+                            <div class="input-group">
+                                <label>Target Item</label>
+                                <input type="hidden" id="targetItemInput" value="">
+                                <button id="btn-target-select" onclick="openTargetModal()">
+                                    <span id="target-btn-text">Select Item</span>
+                                    <span class="arrow">▼</span>
+                                </button>
+                            </div>
+                            <div class="input-group" style="margin-bottom:20px;">
+
+                                <!-- Toggle Buttons -->
+                                <div class="row-spread" style="margin-bottom:4px;">
+                                    <button id="mode-belt" class="mode-btn active" onclick="setGoalMode('belt')">Belt
+                                        Load</button>
+                                    <button id="mode-machine" class="mode-btn" onclick="setGoalMode('machine')">Machine
+                                        Count</button>
+                                </div>
+
+                                <!-- Belt Mode UI -->
+                                <div id="goal-belt-container" class="slider-container">
+                                    <input type="range" id="beltSlider" min="0" max="100" step="1"
+                                        oninput="updateFromSlider()">
+                                    <div id="sliderTicks" class="slider-ticks"></div>
+                                </div>
+
+                                <!-- Machine Mode UI -->
+                                <div id="goal-machine-container" style="display:none; align-items:center;">
+                                    <div class="spinner-wrapper">
+                                        <button class="spinner-btn left first"
+                                            onclick="adjustMachineCount(-1)">-1</button>
+                                        <button class="spinner-btn left"
+                                            onclick="adjustMachineCount(-0.1)">-0.1</button>
+                                        <input type="number" id="machineCountInput" value="1"
+                                            onchange="updateFromMachineCount()">
+                                        <button class="spinner-btn right"
+                                            onclick="adjustMachineCount(0.1)">+0.1</button>
+                                        <button class="spinner-btn right last"
+                                            onclick="adjustMachineCount(1)">+1</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label id="rateLabel">Rate (Items/Min)</label>
+                                <div class="spinner-wrapper">
+                                    <button class="spinner-btn left first" onclick="adjustRate(-1)">-1</button>
+                                    <button class="spinner-btn left" onclick="adjustRate(-0.1)">-0.1</button>
+                                    <input type="number" id="targetRate" value="60" oninput="calculate()">
+                                    <button class="spinner-btn right" onclick="adjustRate(0.1)">+0.1</button>
+                                    <button class="spinner-btn right last" onclick="adjustRate(1)">+1</button>
+                                </div>
+                            </div>
+                        </div> <!-- End Production Panel Content -->
+                    </div> <!-- End Production Panel -->
+
+                    <div class="panel section-logistics">
+                        <div class="panel-header" onclick="toggleSection(this)">
+                            <h3>Logistics</h3>
+                            <span class="toggle-icon">▼</span>
+                        </div>
+                        <div class="panel-content">
+                            <div class="input-group">
+                                <label>Heat Source</label>
+                                <select id="fuelSelect" onchange="updateDefaultButtonState(); calculate();"></select>
+                                <input type="checkbox" id="selfFeed" style="display:none;">
+                                <div class="split-btn-container">
+                                    <button id="btnSelfFuel" class="split-btn btn-inactive-red"
+                                        onclick="toggleFuel()">Self-Fuel: OFF</button>
+                                    <button id="btnDefFuel" class="split-btn" onclick="setDefaultFuel()">Make
+                                        Default</button>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>Fertilizer Source</label>
+                                <select id="fertSelect" onchange="updateDefaultButtonState(); calculate();"></select>
+                                <input type="checkbox" id="selfFert" style="display:none;">
+                                <div class="split-btn-container">
+                                    <button id="btnSelfFert" class="split-btn btn-inactive-red"
+                                        onclick="toggleFert()">Self-Fert: OFF</button>
+                                    <button id="btnDefFert" class="split-btn" onclick="setDefaultFert()">Make
+                                        Default</button>
+                                </div>
+                            </div>
+                            <div class="checkbox-row">
+                                <input type="checkbox" id="showMaxCap" onchange="calculate()">
+                                <label for="showMaxCap" style="display:inline; margin:0; cursor:pointer;">Show
+                                    Machine
+                                    Max Cap</label>
+                            </div>
+                        </div> <!-- End Logistics Panel Content -->
+                    </div> <!-- End Logistics Panel -->
+                </div>
+
+                <!-- Column 2: Tree Results -->
+                <div id="results-area">
+                    <div id="summary-container"></div>
+                    <div id="tree"></div>
+                </div>
+
+                <!-- Column 3: Construction List -->
+                <!-- Swapped Order: Requirements (Byproducts) First, then Construction -->
+                <div id="col-construction">
+                    <div id="requirements-area"></div>
+
+                    <div class="panel collapsed">
+                        <div class="panel-header" onclick="toggleSection(this)">
+                            <h3>Construction List</h3>
+                            <span class="toggle-icon">▼</span>
+                        </div>
+                        <div class="panel-content">
+                            <ul id="construction-list" class="build-list"></ul>
+                            <div id="total-mats-container"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column 4: Upgrades -->
+                <div>
+                    <div class="panel section-upgrades">
+                        <div class="panel-header" onclick="toggleSection(this)">
+                            <h3>Upgrades (Levels)</h3>
+                            <span class="toggle-icon">▼</span>
+                        </div>
+                        <div id="upgradeSummary" class="upgrade-summary"></div>
+                        <div class="panel-content">
+                            <div class="input-group">
+                                <label>Belt Speed</label>
+                                <div class="spinner-wrapper">
+                                    <button class="spinner-btn left first"
+                                        onclick="adjustInput('lvlBelt', -1); updateFromSlider(); updateUpgradeSummary();">-</button>
+                                    <input type="number" id="lvlBelt" value="0" min="0"
+                                        oninput="updateFromSlider(); updateUpgradeSummary();">
+                                    <button class="spinner-btn right last"
+                                        onclick="adjustInput('lvlBelt', 1); updateFromSlider(); updateUpgradeSummary();">+</button>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>Factory Speed</label>
+                                <div class="spinner-wrapper">
+                                    <button class="spinner-btn left first"
+                                        onclick="adjustInput('lvlSpeed', -1); calculate(); updateUpgradeSummary();">-</button>
+                                    <input type="number" id="lvlSpeed" value="0" min="0" oninput="calculate()">
+                                    <button class="spinner-btn right last"
+                                        onclick="adjustInput('lvlSpeed', 1); calculate(); updateUpgradeSummary();">+</button>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>Alchemy Skill</label>
+                                <div class="spinner-wrapper">
+                                    <button class="spinner-btn left first"
+                                        onclick="adjustInput('lvlAlchemy', -1); calculate(); updateUpgradeSummary();">-</button>
+                                    <input type="number" id="lvlAlchemy" value="0" min="0" oninput="calculate()">
+                                    <button class="spinner-btn right last"
+                                        onclick="adjustInput('lvlAlchemy', 1); calculate(); updateUpgradeSummary();">+</button>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>Fuel Efficiency</label>
+                                <div class="spinner-wrapper">
+                                    <button class="spinner-btn left first"
+                                        onclick="adjustInput('lvlFuel', -1); calculate(); updateUpgradeSummary();">-</button>
+                                    <input type="number" id="lvlFuel" value="0" min="0" oninput="calculate()">
+                                    <button class="spinner-btn right last"
+                                        onclick="adjustInput('lvlFuel', 1); calculate(); updateUpgradeSummary();">+</button>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>Fert Efficiency</label>
+                                <div class="spinner-wrapper">
+                                    <button class="spinner-btn left first"
+                                        onclick="adjustInput('lvlFert', -1); calculate(); updateUpgradeSummary();">-</button>
+                                    <input type="number" id="lvlFert" value="0" min="0" oninput="calculate()">
+                                    <button class="spinner-btn right last"
+                                        onclick="adjustInput('lvlFert', 1); calculate(); updateUpgradeSummary();">+</button>
+                                </div>
+                            </div>
+                        </div> <!-- End Panel Content -->
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header" onclick="toggleSection(this)">
+                            <h3>Save/Reset</h3>
+                            <span class="toggle-icon">▼</span>
+                        </div>
+                        <div class="panel-content">
+                            <button class="save-btn" onclick="saveSettings()">Save Upgrades</button>
+
+                            <!-- Updated Reset Actions -->
+                            <div style="display:flex; flex-direction:column; gap:8px; margin-top:15px;">
+                                <button class="reset-btn" onclick="resetSettings()">Reset Settings Only</button>
+                                <button class="reset-btn" onclick="resetRecipes()">Reset Recipes Only</button>
+                                <button class="reset-btn" style="background:#444; color:#fff;"
+                                    onclick="resetFactory()">FULL FACTORY RESET</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Database Editor (Updated) -->
+        <div id="view-db" class="view">
+            <div class="db-container">
+                <!-- Sidebar with Search & Filters -->
+                <div class="db-sidebar">
+                    <div class="db-filters">
+                        <button class="filter-btn active" onclick="setDbFilter('all')">All</button>
+                        <button class="filter-btn" onclick="setDbFilter('item')">Items</button>
+                        <button class="filter-btn" onclick="setDbFilter('recipe')">Recipes</button>
+                        <button class="filter-btn" onclick="setDbFilter('machine')">Machines</button>
+                    </div>
+                    <div class="db-search">
+                        <input type="text" id="db-search-input" placeholder="Search..." oninput="filterDbList()">
+                    </div>
+                    <div id="db-list" class="db-list"></div>
+                </div>
+
+                <!-- Main Editor Area -->
+                <div class="db-main" id="db-editor-area">
+                    <div class="db-header">
+                        <div class="db-title" id="db-editor-title">Select an Item...</div>
+                        <div class="db-controls">
+                            <button class="split-btn btn-inactive-red" onclick="toggleFullSourceMode()"
+                                id="btn-raw-mode" style="border-color:#d32f2f;">Edit Full Source</button>
+                            <button class="split-btn btn-inactive-red" onclick="reportGithubIssue()"
+                                id="btn-report-issue"
+                                style="display:none; color:white !important; border-color:#d32f2f;">Report
+                                Issue</button>
+                        </div>
+                    </div>
+
+                    <!-- Visual Editor Wrapper -->
+                    <div id="visual-editor-wrapper">
+                        <div id="db-form-container" class="db-form-container">
+                            <!-- Dynamic Form Injected Here -->
+                            <div style="color:#666; font-style:italic; text-align:center; margin-top:50px;">Select
+                                an
+                                item from the sidebar to edit.</div>
+                        </div>
+
+                        <!-- Snippet Preview -->
+                        <div id="snippet-container" style="display:none; margin-top:20px;">
+                            <div style="color:#888; font-size:0.85em; margin-bottom:5px; font-family:monospace;">
+                                LIVE
+                                PREVIEW (Source Snippet)</div>
+                            <textarea id="json-snippet" readonly></textarea>
+                        </div>
+
+                        <div
+                            style="margin-top:20px; border-top:1px solid #444; padding-top:15px; display:flex; gap:10px;">
+                            <button class="save-btn" onclick="applyChanges()" style="margin:0;">Apply Changes
+                                (Local)</button>
+                            <button class="info" onclick="exportData()"
+                                style="padding:10px; background:var(--info); border:none; color:white; border-radius:4px; font-weight:bold; cursor:pointer;">Export
+                                to File</button>
+                        </div>
+                    </div>
+
+                    <!-- Full Source Editor (Hidden by default) -->
+                    <div id="full-source-wrapper" style="display:none; height:100%; flex-direction:column;">
+                        <textarea id="json-editor"></textarea>
+                        <div style="margin-top:10px; display:flex; gap:10px;">
+                            <button class="save-btn" onclick="saveFullSource()" style="margin:0;">Save & Reload
+                                DB</button>
+                            <button class="reset-btn" onclick="toggleFullSourceMode()"
+                                style="margin:0; border-color:#aaa; color:#aaa;">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Chain Code Inspector (New) -->
+        <div id="view-code" class="view">
+            <div style="max-width: 1200px; margin: 0 auto;">
+                <h2 style="color:var(--accent); border-bottom:1px solid #444; padding-bottom:10px;">Production Chain
+                    Code Inspector</h2>
+                <p style="color:#aaa; margin-bottom:20px;">Paste a code, URL, or query string below to inspect the
+                    payload.</p>
+
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <textarea id="inspector-input" placeholder="H4sIAAAAA..."
+                        style="width:100%; height:100px; background:#222; color:#fff; border:1px solid #444; padding:10px; font-family:monospace; border-radius:4px; resize:vertical;"></textarea>
+
+                    <div style="display:flex; gap:10px;">
+                        <button onclick="inspectCode()"
+                            style="padding: 10px 20px; background: #2e7d32; color: white; border: none; font-weight: bold; border-radius: 4px; cursor: pointer;">Inspect
+                            Production Chain Code</button>
+                        <button onclick="importCurrentCodeForInspection()"
+                            style="padding: 10px 20px; background: #1976d2; color: white; border: none; font-weight: bold; border-radius: 4px; cursor: pointer;">Import
+                            Current Production Chain Code</button>
+                    </div>
+                </div>
+
+                <div id="inspector-error" style="margin-top:20px; color:#ff5252; font-weight:bold;"></div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px;">
+                    <div class="panel"
+                        style="background:#252525; padding:15px; border:1px solid #444; border-radius:4px;">
+                        <h3
+                            style="margin-top:0; border-bottom:1px solid #444; padding-bottom:10px; color:#aaa; font-size:1em; text-transform:uppercase;">
+                            Raw Compact JSON</h3>
+                        <pre id="inspector-output-raw"
+                            style="background:#1a1a1a; padding:10px; border:1px solid #333; overflow:auto; max-height:600px; color:#bd93f9; font-family:monospace; margin:0;">Waiting for input...</pre>
+                    </div>
+                    <div class="panel"
+                        style="background:#252525; padding:15px; border:1px solid #444; border-radius:4px;">
+                        <h3
+                            style="margin-top:0; border-bottom:1px solid #444; padding-bottom:10px; color:#aaa; font-size:1em; text-transform:uppercase;">
+                            Translated Verbose JSON</h3>
+                        <pre id="inspector-output-trans"
+                            style="background:#1a1a1a; padding:10px; border:1px solid #333; overflow:auto; max-height:600px; color:#bd93f9; font-family:monospace; margin:0;">Waiting for input...</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- App Logic (Must be loaded after DB/Constants) -->
+    <script src="alchemy_calc.js?v=v103"></script>
+    <script src="alchemy_ui.js"></script>
+
+</body>
+
+</html>
