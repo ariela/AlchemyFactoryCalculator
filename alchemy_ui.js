@@ -1657,6 +1657,16 @@ function updateSummaryBox(p, heat, bio, cost, grossRate, actualFuelNeed, actualF
             el.style.color = 'var(--info)';
             el.dataset.state = 'ready';
         }
+
+        // Update URL state via replaceState
+        const url = new URL(window.location);
+        url.searchParams.set('code', code);
+
+        // Clean up legacy parameters to maintain a clean URL
+        const legacyParams = ['item', 'rate', 'setupgrades', 'heat', 'fert', 'load'];
+        legacyParams.forEach(p => url.searchParams.delete(p));
+
+        window.history.replaceState({}, '', url);
     }).catch(err => console.warn("Auto-gen code failed", err));
 }
 function toggleBuildGroup(header) { header.classList.toggle('expanded'); }
